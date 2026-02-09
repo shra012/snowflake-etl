@@ -60,3 +60,12 @@ def get_snowflake_params() -> Dict[str, Optional[str]]:
         "schema": os.environ.get("SNOWFLAKE_SCHEMA"),
         "role": os.environ.get("SNOWFLAKE_ROLE"),
     }
+
+def get_sheets_spreadsheet_id() -> str:
+    """Return the target Google Sheets spreadsheet ID."""
+    sid = os.environ.get("GOOGLE_SHEETS_SPREADSHEET_ID", "")
+    if not sid:
+        raise RuntimeError(
+            "GOOGLE_SHEETS_SPREADSHEET_ID environment variable must be set."
+        )
+    return sid
