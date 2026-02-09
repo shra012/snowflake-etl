@@ -39,7 +39,10 @@ def run_analytics(conn) -> Dict[str, Any]:
         for qid, q in sorted(queries.items()):
             sql = _format_query(q)
             cur.execute(sql)
-            results[qid] = cur.fetchall()
+            rows = cur.fetchall()
+            # Extract column names from cursor description
+            columns = [col[0] for col in cur.description] if cur.description else []
+            results[qid] = {"columns": columns, "rows": rows}
     return results
 
 

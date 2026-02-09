@@ -32,6 +32,8 @@ from docs_pipeline.config import tbl
 
 DEFAULT_PER_HOST_DELAY = 0.1  # seconds
 DEFAULT_RETRIES = 3
+MAX_CONTENT_SIZE = 1024 * 1024  # 1MB
+MAX_FAILURES = 5
 
 
 def compute_hash(content: bytes) -> str:
@@ -101,6 +103,11 @@ def fetch_and_process(
         # Skip network call and return SKIPPED
         return {"status": "SKIPPED", "reason": "lastmod_not_newer"}
 
+    # Skip if consistently failing
+    consecutive_failures = content_entry.get("CONSECUTIVE_FAILURES", 0) if content_entry else 0
+    if consecutive_failures >= MAX_FAILURES:
+        return {"status": "SKIPPED", "reason": "too_many_failures"}
+
     headers = {}
     if content_entry:
         etag = content_entry.get("ETAG")
@@ -118,6 +125,11 @@ def fetch_and_process(
             resp = fetch_url(session, url, headers)
             status = resp.status_code
 
+            # Check size from headers first
+            content_length = resp.headers.get("Content-Length")
+            if content_length and int(content_length) > MAX_CONTENT_SIZE:
+                return {"status": "SKIPPED", "reason": "content_too_large_header"}
+
             if status == 304:
                 # Not modified; update LAST_FETCH_* and keep content as is
                 update = {
@@ -130,7 +142,12 @@ def fetch_and_process(
                 return {"status": "NOT_MODIFIED"}
 
             if 200 <= status < 300:
-                content_bytes = resp.content
+                # Stream content to enforcing size limit
+                content_bytes = b""
+                for chunk in resp.iter_content(chunk_size=8192):
+                    content_bytes += chunk
+                    if len(content_bytes) > MAX_CONTENT_SIZE:
+                        return {"status": "SKIPPED", "reason": "content_too_large_body"}
                 content_hash = compute_hash(content_bytes)
                 content_length = len(content_bytes)
                 content_type = resp.headers.get("Content-Type")

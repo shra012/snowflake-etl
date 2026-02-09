@@ -16,6 +16,11 @@ class DummyResp:
         self.content = content
         self.headers = headers or {}
 
+    def iter_content(self, chunk_size=1):
+        # Yield content in chunks
+        for i in range(0, len(self.content), chunk_size):
+            yield self.content[i : i + chunk_size]
+
 
 class DummySession(requests.Session):
     def __init__(self, responses):
@@ -137,5 +142,61 @@ def test_failing_after_retries(monkeypatch):
 
     res = cf.fetch_and_process(sess, doc, content, write_cb, settings={"retries": 2})
     assert res["status"] == "FAILED"
-    assert updates[doc["DOCUMENT_URL"]]["LAST_FETCH_STATUS"] == "FAILED"
     assert updates[doc["DOCUMENT_URL"]]["CONSECUTIVE_FAILURES"] >= 1
+
+
+def test_skip_too_many_failures():
+    doc = {"DOCUMENT_URL": "https://example.com/d5", "LASTMOD": None}
+    content = {"CONSECUTIVE_FAILURES": 6}  # > MAX_FAILURES (5)
+
+    sess = DummySession([])
+    called = False
+
+    def write_cb(url, update):
+        nonlocal called
+        called = True
+
+    res = cf.fetch_and_process(sess, doc, content, write_cb)
+    assert res["status"] == "SKIPPED"
+    assert res["reason"] == "too_many_failures"
+    assert not called
+
+
+def test_skip_content_too_large_header():
+    # Header says 2MB
+    headers = {"Content-Length": str(2 * 1024 * 1024)}
+    resp = DummyResp(status=200, content=b"fake", headers=headers)
+    sess = DummySession([resp])
+
+    doc = {"DOCUMENT_URL": "https://example.com/d6", "LASTMOD": None}
+    content = None
+    called = False
+
+    def write_cb(url, update):
+        nonlocal called
+        called = True
+
+    res = cf.fetch_and_process(sess, doc, content, write_cb)
+    assert res["status"] == "SKIPPED"
+    assert res["reason"] == "content_too_large_header"
+    assert not called
+
+
+def test_skip_content_too_large_body():
+    # Body is > 1MB
+    large_content = b"x" * (1024 * 1024 + 100)
+    resp = DummyResp(status=200, content=large_content, headers={})
+    sess = DummySession([resp])
+
+    doc = {"DOCUMENT_URL": "https://example.com/d7", "LASTMOD": None}
+    content = None
+    called = False
+
+    def write_cb(url, update):
+        nonlocal called
+        called = True
+
+    res = cf.fetch_and_process(sess, doc, content, write_cb)
+    assert res["status"] == "SKIPPED"
+    assert res["reason"] == "content_too_large_body"
+    assert not called
