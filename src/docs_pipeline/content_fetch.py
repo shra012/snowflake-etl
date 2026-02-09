@@ -288,3 +288,157 @@ def run_content_fetch(conn, batch_size: int = 100, settings: Optional[Dict[str, 
         pass
 
     return {"total": total, "successes": successes, "failures": failures}
+
+
+def run_content_fetch_parallel(conn, batch_size: int = 100, settings: Optional[Dict[str, Any]] = None, max_workers: int = 10) -> Dict[str, Any]:
+    """Parallelized driver to fetch content for URLs in DOCS_MASTER.
+
+    Uses ThreadPoolExecutor for concurrent HTTP fetching while keeping DB writes thread-safe.
+    
+    Args:
+        conn: Snowflake connection
+        batch_size: Number of URLs to process per batch for progress reporting
+        settings: Optional settings dict (supports 'max_docs', 'per_host_delay', 'retries')
+        max_workers: Number of parallel worker threads (default 10)
+
+    Returns a summary dict with total, successes, failures, and skipped counts.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from threading import Lock
+    from datetime import datetime
+    from .observability import record_pipeline_metrics, raise_alert
+
+    settings = settings or {}
+
+    # Fetch all candidate URLs
+    with conn.cursor() as cur:
+        cur.execute(f"SELECT DOCUMENT_URL, LASTMOD FROM {tbl('DOCS_MASTER')}")
+        rows = cur.fetchall()
+
+    # Optional: limit the number of documents processed
+    max_docs = settings.get("max_docs")
+    if max_docs is not None:
+        try:
+            rows = rows[:int(max_docs)]
+        except Exception:
+            pass
+
+    # Pre-fetch all existing content entries in one query for efficiency
+    with conn.cursor() as cur:
+        cur.execute(f"""
+            SELECT DOCUMENT_URL, CONTENT_HASH, ETAG, HTTP_LAST_MODIFIED, LAST_SUCCESS_AT, CONSECUTIVE_FAILURES 
+            FROM {tbl('DOCUMENT_CONTENT')}
+        """)
+        content_rows = cur.fetchall()
+    
+    content_cache = {}
+    for row in content_rows:
+        content_cache[row[0]] = {
+            "CONTENT_HASH": row[1],
+            "ETAG": row[2],
+            "HTTP_LAST_MODIFIED": row[3],
+            "LAST_SUCCESS_AT": row[4],
+            "CONSECUTIVE_FAILURES": row[5],
+        }
+
+    # Thread-safe counters
+    counters = {"total": 0, "successes": 0, "failures": 0, "skipped": 0}
+    counters_lock = Lock()
+    db_lock = Lock()
+
+    def write_cb_threadsafe(doc_url: str, update: Dict[str, Any]):
+        """Thread-safe DB write callback."""
+        columns = ", ".join(update.keys())
+        placeholders = ", ".join(["%s"] * len(update))
+        sql = f"MERGE INTO {tbl('DOCUMENT_CONTENT')} t USING (SELECT %s as DOCUMENT_URL) s ON t.DOCUMENT_URL = s.DOCUMENT_URL WHEN MATCHED THEN UPDATE SET " + ", ".join([f"{k} = %s" for k in update.keys()]) + " WHEN NOT MATCHED THEN INSERT (DOCUMENT_URL, " + columns + ") VALUES (%s, " + placeholders + ")"
+        vals = [doc_url] + list(update.values()) + [doc_url] + list(update.values())
+        with db_lock:
+            with conn.cursor() as cur:
+                cur.execute(sql, vals)
+
+    def process_url(doc_url: str, lastmod: Optional[str], session: requests.Session) -> str:
+        """Process a single URL and return status."""
+        content_entry = content_cache.get(doc_url)
+        result = fetch_and_process(
+            session, 
+            {"DOCUMENT_URL": doc_url, "LASTMOD": lastmod}, 
+            content_entry, 
+            write_cb_threadsafe, 
+            settings
+        )
+        return result.get("status", "UNKNOWN")
+
+    started = datetime.utcnow()
+    
+    # Process URLs in parallel
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Each thread gets its own session for connection pooling
+        import threading
+        thread_sessions = threading.local()
+        
+        def get_session():
+            if not hasattr(thread_sessions, 'session'):
+                thread_sessions.session = requests.Session()
+            return thread_sessions.session
+
+        def worker(doc_url: str, lastmod: Optional[str]) -> str:
+            session = get_session()
+            return process_url(doc_url, lastmod, session)
+
+        futures = {executor.submit(worker, doc_url, lastmod): doc_url for doc_url, lastmod in rows}
+        
+        processed = 0
+        for future in as_completed(futures):
+            doc_url = futures[future]
+            try:
+                status = future.result()
+                with counters_lock:
+                    counters["total"] += 1
+                    if status == "SUCCESS":
+                        counters["successes"] += 1
+                    elif status == "FAILED":
+                        counters["failures"] += 1
+                    elif status in ("SKIPPED", "NOT_MODIFIED"):
+                        counters["skipped"] += 1
+            except Exception as e:
+                with counters_lock:
+                    counters["total"] += 1
+                    counters["failures"] += 1
+            
+            processed += 1
+            if processed % batch_size == 0:
+                print(f"Progress: {processed}/{len(rows)} ({100*processed/len(rows):.1f}%)")
+
+    ended = datetime.utcnow()
+    
+    # Record metrics
+    try:
+        record_pipeline_metrics(
+            conn, 'content_fetch_parallel', 'content_pipeline', 'fetch', 
+            started, ended, 
+            rows_input=counters["total"], 
+            rows_output=counters["successes"], 
+            success_count=counters["successes"], 
+            failure_count=counters["failures"],
+            skipped_count=counters["skipped"]
+        )
+        
+        failure_rate = (counters["failures"] / counters["total"]) if counters["total"] > 0 else 0.0
+        if failure_rate > 0.2:
+            raise_alert(conn, f"CONTENT_FETCH_FAILURES_{int(time.time())}", None, 'failure_rate', 'CRITICAL', 
+                       f'Content fetch failure rate {failure_rate:.2%}', metric_name='failure_rate', 
+                       metric_value=failure_rate, threshold=0.2)
+        elif failure_rate > 0.05:
+            raise_alert(conn, f"CONTENT_FETCH_FAILURES_{int(time.time())}", None, 'failure_rate', 'WARN', 
+                       f'Content fetch failure rate {failure_rate:.2%}', metric_name='failure_rate', 
+                       metric_value=failure_rate, threshold=0.05)
+    except Exception:
+        pass
+
+    return {
+        "total": counters["total"], 
+        "successes": counters["successes"], 
+        "failures": counters["failures"],
+        "skipped": counters["skipped"],
+        "duration_seconds": (ended - started).total_seconds()
+    }
