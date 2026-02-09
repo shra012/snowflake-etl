@@ -1,0 +1,28 @@
+[project]
+name = "snoflake-docs-pipeline"
+version = "0.0.0"
+description = "Product documentation pipeline (take-home)"
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+  "requests",
+  "aiohttp",
+  "snowflake-connector-python",
+  "python-dotenv",
+  "uv",
+  "google-api-python-client>=2.189.0",
+  "google-auth>=2.48.0",
+  "google-auth-httplib2>=0.3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+data = [
+  "pandas",
+  "pyarrow",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"

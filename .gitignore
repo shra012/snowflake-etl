@@ -1,0 +1,10 @@
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store
+AGENTS.md
+TASKS.md
+.github
+src/resources/gcp.json

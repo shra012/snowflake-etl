@@ -1,0 +1,93 @@
+"""DDL templates for the pipeline tables.
+
+Use functions in this module to generate the DDL so we consistently reference
+`CANDIDATE_{INITIALS}_...` table names via the `tbl` helper in `config.py`.
+"""
+from __future__ import annotations
+from .config import tbl
+
+
+def sitemap_staging_ddl() -> str:
+    return f"""
+CREATE TABLE IF NOT EXISTS {tbl('SITEMAP_STAGING')} (
+  RUN_ID             STRING      NOT NULL,
+  SOURCE_IDENTIFIER  STRING      NOT NULL,
+  SITEMAP_URL        STRING      NOT NULL,
+  DOCUMENT_URL       STRING      NOT NULL,
+  LASTMOD            TIMESTAMP_NTZ,
+  EXTRACTED_AT       TIMESTAMP_NTZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+  CONSTRAINT PK_SITEMAP_STAGING PRIMARY KEY (RUN_ID, SOURCE_IDENTIFIER, DOCUMENT_URL)
+);
+"""
+
+
+def docs_master_ddl() -> str:
+    return f"""
+CREATE TABLE IF NOT EXISTS {tbl('DOCS_MASTER')} (
+  DOCUMENT_URL   STRING        NOT NULL,
+  SOURCES        ARRAY         NOT NULL,
+  FIRST_SEEN_AT  TIMESTAMP_NTZ NOT NULL,
+  LAST_SEEN_AT   TIMESTAMP_NTZ NOT NULL,
+  LASTMOD        TIMESTAMP_NTZ,
+  UPDATED_AT     TIMESTAMP_NTZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+  CONSTRAINT PK_DOCS_MASTER PRIMARY KEY (DOCUMENT_URL)
+);
+"""
+
+
+def document_content_ddl() -> str:
+    return f"""
+CREATE TABLE IF NOT EXISTS {tbl('DOCUMENT_CONTENT')} (
+  DOCUMENT_URL            STRING        NOT NULL,
+  CONTENT_TEXT            STRING,
+  CONTENT_HASH            STRING,
+  CONTENT_LENGTH_BYTES    NUMBER,
+  CONTENT_TYPE            STRING,
+  ETAG                    STRING,
+  HTTP_LAST_MODIFIED      STRING,
+  LAST_FETCH_AT           TIMESTAMP_NTZ,
+  LAST_FETCH_STATUS       STRING,
+  LAST_HTTP_STATUS        NUMBER,
+  LAST_ERROR              STRING,
+  LAST_SUCCESS_AT         TIMESTAMP_NTZ,
+  CONSECUTIVE_FAILURES    NUMBER        DEFAULT 0,
+  UPDATED_AT              TIMESTAMP_NTZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+  CONSTRAINT PK_DOCUMENT_CONTENT PRIMARY KEY (DOCUMENT_URL)
+);
+"""
+
+
+def pipeline_metrics_ddl() -> str:
+    return f"""
+CREATE TABLE IF NOT EXISTS {tbl('PIPELINE_METRICS')} (
+  RUN_ID            STRING        NOT NULL,
+  PIPELINE_NAME     STRING        NOT NULL,
+  STEP_NAME         STRING        NOT NULL,
+  STARTED_AT        TIMESTAMP_NTZ NOT NULL,
+  ENDED_AT          TIMESTAMP_NTZ,
+  DURATION_SECONDS  NUMBER,
+  ROWS_INPUT        NUMBER,
+  ROWS_OUTPUT       NUMBER,
+  SUCCESS_COUNT     NUMBER,
+  FAILURE_COUNT     NUMBER,
+  SKIPPED_COUNT     NUMBER,
+  NOTES             VARIANT
+);
+"""
+
+
+def alerts_ddl() -> str:
+    return f"""
+CREATE TABLE IF NOT EXISTS {tbl('ALERTS')} (
+  ALERT_ID      STRING        NOT NULL,
+  RUN_ID        STRING,
+  ALERT_TYPE    STRING        NOT NULL,
+  SEVERITY      STRING        NOT NULL,
+  MESSAGE       STRING        NOT NULL,
+  METRIC_NAME   STRING,
+  METRIC_VALUE  FLOAT,
+  THRESHOLD     FLOAT,
+  CREATED_AT    TIMESTAMP_NTZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+  RESOLVED_AT   TIMESTAMP_NTZ
+);
+"""
