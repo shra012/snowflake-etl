@@ -8,3 +8,4 @@ AGENTS.md
 TASKS.md
 .github
 src/resources/gcp.json
+src/*.egg-info/

@@ -1,97 +1,115 @@
-# Product Documentation Pipeline
+# Snowflake Data Intern Assessment -- ETL Pipeline
 
-Minimal project skeleton for the Snowflake docs pipeline take-home.
+## Setup
 
-Quick start (macOS):
+```bash
+cp .env.template .env   # fill in credentials
+uv sync                 # install dependencies
+uv run pytest -q        # run tests
+```
 
-1. Create a virtual environment:
+Required `.env` variables:
 
-   python3 -m venv .venv
+| Variable | Purpose |
+|----------|---------|
+| `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_PASSWORD` | Snowflake auth |
+| `SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA` | Snowflake target |
+| `INITIALS` | Table prefix (e.g. `NS`) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON |
+| `GOOGLE_SHEETS_SPREADSHEET_ID` | Part 1 export sheet |
+| `GITHUB_TOKEN` | GitHub personal access token |
+| `GITHUB_SHEETS_SPREADSHEET_ID` | Part 2 export sheet |
 
-2. Activate it:
+---
 
-   source .venv/bin/activate
+## Part 1: Sitemap URL Analysis
 
-3. Upgrade pip and install the project dependencies:
+Ingests Snowflake product documentation sitemaps, fetches page content, loads into Snowflake, and runs analytics.
 
-   python -m pip install --upgrade pip
-   pip install -e .[dev]
+### Project Structure
 
-   Optional: install the data extras required for Snowflake's pandas fetch API (provides `pandas` and `pyarrow`):
+```
+src/docs_pipeline/
+    cli.py            # CLI entry point
+    config.py         # Environment config and table naming
+    sitemap.py        # Sitemap XML extraction
+    consolidation.py  # Staging to master merge
+    content_fetch.py  # Document content retrieval
+    analytics.py      # Task 4 SQL analytics
+    export_sheets.py  # Google Sheets export
+sql/
+    task4_analytics.sql
+    task5_optimizations.sql
+```
 
-   pip install -e .[data]
+### Usage
 
-4. Copy `.env.template` to `.env` and fill in Snowflake and other credentials.
+```bash
+# Full pipeline
+python -m src.docs_pipeline.cli --run-all \
+  --sitemap-sources "docs=https://docs.snowflake.com/en/sitemap.xml" \
+  --sheets-spreadsheet-id <ID>
 
-5. Run tests:
+# Individual steps
+python -m src.docs_pipeline.cli --run-sitemap-extract --run-id run_01
+python -m src.docs_pipeline.cli --run-consolidate --run-id run_01
+python -m src.docs_pipeline.cli --run-content-fetch
+python -m src.docs_pipeline.cli --run-analytics
+python -m src.docs_pipeline.cli --export-sheets --sheets-spreadsheet-id <ID>
+```
 
-   pytest -q
+---
 
-Minimal CLI usage (quick checks & full pipeline)
+## Part 2: GitHub Contributor Analytics
 
-Overview: run individual steps or a single `--run-all` to perform extraction → consolidation → fetch → analytics → (optional) Sheets export.
+Ingests contributor activity from the GitHub REST API for `apache/airflow`, computes weighted scores and tiers, and exports results to Google Sheets.
 
-Common flags:
-- `--run-id <id>` — attach an id to sitemap staging and consolidation runs
-- `--sitemap-sources "key=https://...;key2=https://..."` — provide multiple sitemap sources
-- `--batch-size <n>` — staging insert batch size (default 500)
-- `--max-urls <n>` — limit sitemap extraction for smoke runs
-- `--content-batch-size <n>` — number of docs processed per batch in fetch (default 100)
-- `--max-docs <n>` — limit docs fetched for smoke runs
+### Project Structure
 
-Commands (minimal usage):
+```
+src/github_pipeline/
+    config.py         # Token and credential loading from .env
+    ingestion.py      # Paginated GitHub API fetching with retry
+    transformation.py # Scoring, tiering, ranking
+    export_sheets.py  # Google Sheets export
+github_pipeline_notebook.ipynb  # Orchestration notebook
+```
 
-- Print DDL for tables (verify table names):
+### Scoring
 
-  python -m src.docs_pipeline.cli --create-tables
+```
+raw_score = (commits x 5) + (prs x 10) + (comments x 2) + (reviews x 3)
+score     = min(raw_score, 100)
+```
 
-- Apply DDL to Snowflake (CAUTION: runs SQL against your account):
+### Tier Definitions
 
-  python -m src.docs_pipeline.cli --apply-tables --yes
+| Tier | Criteria |
+|------|----------|
+| core | commits + prs >= 20 |
+| active | commits + prs >= 5 |
+| contributor | commits + prs >= 1 |
+| observer | commits + prs = 0 |
 
-- Run a quick Snowflake diagnostic (prints version and pandas/pyarrow availability):
+### Usage
 
-  python -m src.docs_pipeline.cli --test-connection
+Run `github_pipeline_notebook.ipynb` end-to-end. The notebook calls:
 
-- Extract sitemaps and insert to SITEMAP_STAGING (provide run id and optional sources):
+1. `ingestion.run_ingestion()` -- fetches commits, PRs, comments, issues, reviews
+2. `transformation.process_contributors(data)` -- builds scored/ranked DataFrame
+3. `export_sheets.export_to_sheets(df, spreadsheet_id)` -- writes to Google Sheets
 
-  python -m src.docs_pipeline.cli --run-sitemap-extract --run-id run_20260101 --sitemap-sources "docs=https://docs.snowflake.com/en/sitemap.xml"
+---
 
-  Smoke extract (limit urls):
+## Tests
 
-  python -m src.docs_pipeline.cli --run-sitemap-extract --run-id smoke_run --sitemap-sources "docs=https://docs.snowflake.com/en/sitemap.xml;other=https://other-docs.snowflake.com/en/sitemap.xml" --max-urls 500
+```bash
+uv run pytest -q                     # all tests
+uv run pytest tests/test_github_*.py # Part 2 only
+```
 
-- Consolidate staging into DOCS_MASTER (idempotent MERGE):
+## Notes
 
-  python -m src.docs_pipeline.cli --run-consolidate --run-id run_20260101
-
-- Fetch document content and update DOCUMENT_CONTENT:
-
-  python -m src.docs_pipeline.cli --run-content-fetch --content-batch-size 100
-
-  Smoke fetch (limit docs):
-
-  python -m src.docs_pipeline.cli --run-content-fetch --content-batch-size 50 --max-docs 200
-
-- Run Task 4 analytics and print results:
-
-  python -m src.docs_pipeline.cli --run-analytics
-
-- Export analytics to Google Sheets (requires `GOOGLE_APPLICATION_CREDENTIALS` or `--sheets-credentials` and the sheet ID):
-
-  python -m src.docs_pipeline.cli --export-sheets --sheets-spreadsheet-id <SPREADSHEET_ID>
-
-  Or run with explicit creds path:
-
-  python -m src.docs_pipeline.cli --export-sheets --sheets-spreadsheet-id <SPREADSHEET_ID> --sheets-credentials /path/to/creds.json
-
-- Run the entire pipeline end-to-end (extract → consolidate → fetch → analytics → export):
-
-  python -m src.docs_pipeline.cli --run-all --sitemap-sources "docs=https://docs.snowflake.com/en/sitemap.xml;other=https://other-docs.snowflake.com/en/sitemap.xml" --max-urls 500 --max-docs 200 --sheets-spreadsheet-id <SPREADSHEET_ID>
-
-Notes & safety tips
-- The CLI validates `INITIALS` env var to avoid accidental writes to placeholder tables — set `INITIALS` to your initials (e.g., `INITIALS=JD`).
-- Provide credentials via `.env` or environment variables and never commit `.env` or service account JSON into git. The repository `.gitignore` already excludes `.env` and `src/resources/gcp.json`.
-- For long/full runs prefer conservative `--content-batch-size` and `--max-docs` and enable retry/timeout config as needed.
-
-See `src/docs_pipeline/cli.py` for exact flag names and behavior. 💡
+- Never commit `.env` or `src/resources/gcp.json`. Both are in `.gitignore`.
+- The `INITIALS` variable prefixes all Snowflake table names to avoid collisions.
+- GitHub ingestion defaults to 1,000 rows per endpoint (10 pages x 100/page).
