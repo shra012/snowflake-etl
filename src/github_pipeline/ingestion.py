@@ -184,17 +184,49 @@ def fetch_reviews(
 
 # ── Orchestrator ────────────────────────────────────────────────────────────
 
-def run_ingestion(conn=None) -> Dict[str, Any]:
-    """Run the full ingestion pipeline.
+def _read_table_json(conn, table_suffix: str) -> List[dict]:
+    """Read RAW_JSON from a Snowflake raw table and return as list of dicts.
 
-    **Resume behaviour**: Every page of API results is loaded into
-    Snowflake immediately via MERGE (upsert).  If the pipeline is
-    interrupted, re-running it will re-fetch from page 1 while MERGE
-    silently skips rows that already exist.  The pipeline then
-    continues through all remaining pages.
+    This is the Snowflake-based alternative to fetching from the GitHub API.
+    Each row's ``RAW_JSON`` VARIANT column is parsed back into a Python dict,
+    producing the same structure that the API fetchers return.
+
+    Args:
+        conn: Snowflake connection.
+        table_suffix: e.g. ``'GH_RAW_COMMITS'``.
+
+    Returns:
+        List of dicts (one per row), identical in shape to the API response.
+    """
+    import json as _json
+    from src.docs_pipeline.config import tbl
+
+    table_name = tbl(table_suffix)
+    print(f"  Reading {table_name} from Snowflake...")
+    with conn.cursor() as cur:
+        cur.execute(f"SELECT RAW_JSON FROM {table_name}")
+        rows = cur.fetchall()
+    data = []
+    for (raw,) in rows:
+        if isinstance(raw, str):
+            data.append(_json.loads(raw))
+        elif isinstance(raw, dict):
+            data.append(raw)
+        else:
+            # Snowflake DictCursor may return other types
+            data.append(dict(raw) if raw else {})
+    print(f"  Loaded {len(data)} rows from {table_name}")
+    return data
+
+
+def run_ingestion(conn=None, from_snowflake: bool = False) -> Dict[str, Any]:
+    """Run the full ingestion pipeline.
 
     Args:
         conn: Optional Snowflake connection for storage and resume.
+        from_snowflake: If ``True``, skip API calls and read previously
+            loaded data directly from the Snowflake raw tables. Requires
+            ``conn`` to be set.
 
     Returns:
         Dictionary with keys ``commits``, ``pulls``, ``pr_comments``,
@@ -202,7 +234,27 @@ def run_ingestion(conn=None) -> Dict[str, Any]:
     """
     import pandas as pd
 
-    # Build page-level callbacks that stream to Snowflake
+    if from_snowflake:
+        # ── Pull data from Snowflake instead of the GitHub API ──────────
+        if conn is None:
+            raise ValueError("A Snowflake connection is required when from_snowflake=True")
+
+        print("Loading data from Snowflake raw tables (skipping API)...")
+        commits_data = _read_table_json(conn, "GH_RAW_COMMITS")
+        pulls_data = _read_table_json(conn, "GH_RAW_PULLS")
+        pr_comments_data = _read_table_json(conn, "GH_RAW_PR_COMMENTS")
+        issues_data = _read_table_json(conn, "GH_RAW_ISSUES")
+        reviews_data = _read_table_json(conn, "GH_RAW_REVIEWS")
+
+        return {
+            "commits": pd.DataFrame(commits_data),
+            "pulls": pd.DataFrame(pulls_data),
+            "pr_comments": pd.DataFrame(pr_comments_data),
+            "issues": pd.DataFrame(issues_data),
+            "reviews": pd.DataFrame(reviews_data),
+        }
+
+    # ── Original path: fetch from GitHub API ────────────────────────────
     commit_cb = None
     pull_cb = None
     comment_cb = None

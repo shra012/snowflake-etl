@@ -26,6 +26,12 @@ Required `.env` variables:
 
 Ingests Snowflake product documentation sitemaps, fetches page content, loads into Snowflake, and runs analytics.
 
+### Architecture
+
+The diagram below shows the end-to-end data flow from XML sitemap sources through extraction, consolidation, content ingestion, and analytics, along with the observability layer that tracks pipeline health.
+
+![Docs Pipeline Architecture](docs/docs_pipeline_architecture.drawio.png)
+
 ### Project Structure
 
 ```
@@ -63,6 +69,12 @@ python -m src.docs_pipeline.cli --export-sheets --sheets-spreadsheet-id <ID>
 ## Part 2: GitHub Contributor Analytics
 
 Ingests contributor activity from the GitHub REST API for `apache/airflow`, computes weighted scores and tiers, and exports results to Google Sheets.
+
+### Architecture
+
+The diagram below illustrates the streaming ingestion from 5 GitHub API endpoints into Snowflake raw tables, followed by Pandas-based transformation (scoring, tiering, ranking) and export to Google Sheets.
+
+![GitHub Pipeline Architecture](docs/github_pipeline_architecture.drawio.png)
 
 ### Project Structure
 

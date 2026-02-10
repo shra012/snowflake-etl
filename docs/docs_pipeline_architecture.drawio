@@ -1,0 +1,132 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.3.6 Chrome/140.0.7339.249 Electron/38.8.0 Safari/537.36" version="29.3.6">
+  <diagram id="docs-pipeline" name="Docs Pipeline Architecture">
+    <mxGraphModel dx="1426" dy="850" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;fillColor=none;strokeColor=none;fontColor=#1A1A2E;" value="Part 1: Docs Pipeline Architecture" vertex="1">
+          <mxGeometry height="40" width="500" x="400" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="source-group" parent="1" style="text;html=1;fontSize=14;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#6C63FF;" value="Data Sources" vertex="1">
+          <mxGeometry height="30" width="200" x="40" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="sitemap1" parent="1" style="shape=document;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=0.27;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;rounded=1;" value="&lt;b&gt;docs.snowflake.com&lt;/b&gt;&lt;br&gt;sitemap.xml" vertex="1">
+          <mxGeometry height="80" width="180" x="40" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="sitemap2" parent="1" style="shape=document;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=0.27;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;rounded=1;" value="&lt;b&gt;other-docs.snowflake.com&lt;/b&gt;&lt;br&gt;sitemap.xml" vertex="1">
+          <mxGeometry height="80" width="180" x="40" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="task1-group" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#9C27B0;strokeWidth=2;dashed=1;arcSize=8;" value="" vertex="1">
+          <mxGeometry height="230" width="220" x="300" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="task1-label" parent="1" style="text;html=1;fontSize=13;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#7B1FA2;" value="Task 1: Sitemap Extraction" vertex="1">
+          <mxGeometry height="25" width="200" x="310" y="95" as="geometry" />
+        </mxCell>
+        <mxCell id="parser" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#9C27B0;fontSize=11;" value="&lt;b&gt;XML Parser&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Recursive: index + urlset&lt;br&gt;visited_sitemaps guard&lt;br&gt;gzip support&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="170" x="325" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="staging" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=8;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="&lt;b&gt;SITEMAP_STAGING&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;RUN_ID, SOURCE_ID,&lt;br&gt;URL, LASTMOD&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="150" x="335" y="225" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="sitemap1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7B1FA2;strokeWidth=2;" target="parser">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="sitemap2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7B1FA2;strokeWidth=2;" target="parser">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="parser" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#D6B656;strokeWidth=2;fontSize=10;fontColor=#888;" target="staging" value="Batch Write">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="task2-group" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#388E3C;strokeWidth=2;dashed=1;arcSize=8;" value="" vertex="1">
+          <mxGeometry height="230" width="220" x="590" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="task2-label" parent="1" style="text;html=1;fontSize=13;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#2E7D32;" value="Task 2: Consolidation" vertex="1">
+          <mxGeometry height="25" width="200" x="600" y="95" as="geometry" />
+        </mxCell>
+        <mxCell id="merge" parent="1" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#C8E6C9;strokeColor=#388E3C;fontSize=11;" value="&lt;b&gt;MERGE INTO&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Upsert (idempotent)&lt;br&gt;ARRAY_CAT SOURCES&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="180" x="610" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="master" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=8;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="&lt;b&gt;DOCS_MASTER&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;1 row / URL&lt;br&gt;SOURCES[], FIRST_SEEN,&lt;br&gt;LAST_SEEN, LASTMOD&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="150" x="625" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="staging" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#388E3C;strokeWidth=2;entryX=0.375;entryY=1;entryDx=0;entryDy=0;" target="merge">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="678" y="240" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="merge" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#D6B656;strokeWidth=2;" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="task3-group" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=2;dashed=1;arcSize=8;" value="" vertex="1">
+          <mxGeometry height="230" width="250" x="880" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="task3-label" parent="1" style="text;html=1;fontSize=13;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#0D47A1;" value="Task 3: Content Ingestion" vertex="1">
+          <mxGeometry height="25" width="230" x="890" y="95" as="geometry" />
+        </mxCell>
+        <mxCell id="fetcher" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=11;" value="&lt;b&gt;HTTP Fetcher&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;ETag / Last-Modified&lt;br&gt;Content Hash compare&lt;br&gt;Exponential backoff&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="200" x="905" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="content" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=8;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="&lt;b&gt;DOCUMENT_CONTENT&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;TEXT, HASH, STATUS&lt;br&gt;CONSECUTIVE_FAILURES&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="160" x="925" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="master" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#1565C0;strokeWidth=2;entryX=0.25;entryY=1;entryDx=0;entryDy=0;" target="fetcher">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="955" y="240" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="fetcher" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#D6B656;strokeWidth=2;" target="content">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="analytics-group" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;strokeWidth=2;dashed=1;arcSize=8;" value="" vertex="1">
+          <mxGeometry height="170" width="550" x="590" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="analytics-label" parent="1" style="text;html=1;fontSize=13;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#BF360C;" value="Task 4/5: Analytics &amp; Optimization" vertex="1">
+          <mxGeometry height="25" width="200" x="900" y="385" as="geometry" />
+        </mxCell>
+        <mxCell id="q4a" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;" value="4a: Doc Count&lt;br&gt;by Source" vertex="1">
+          <mxGeometry height="50" width="95" x="605" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="q4b" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;" value="4b: Monthly&lt;br&gt;Distribution" vertex="1">
+          <mxGeometry height="50" width="95" x="710" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="q4c" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;" value="4c: Fetch&lt;br&gt;Success Rate" vertex="1">
+          <mxGeometry height="50" width="95" x="815" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="q4d" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;" value="4d: Top&lt;br&gt;Path Segments" vertex="1">
+          <mxGeometry height="50" width="95" x="920" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="q4e" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10;" value="4e: Stale&lt;br&gt;Documents" vertex="1">
+          <mxGeometry height="50" width="90" x="1025" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="master" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#E65100;strokeWidth=1;dashed=1;" target="q4a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="content" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#E65100;strokeWidth=1;dashed=1;" target="q4c">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="sheets" parent="1" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="&lt;b&gt;Google Sheets&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Task 8 Export&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="775" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="q4b" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#82b366;strokeWidth=2;" target="sheets">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="obs-group" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#C62828;strokeWidth=2;dashed=1;arcSize=8;" value="" vertex="1">
+          <mxGeometry height="170" width="480" x="40" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="obs-label" parent="1" style="text;html=1;fontSize=13;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#B71C1C;" value="Task 7: Observability" vertex="1">
+          <mxGeometry height="25" width="200" x="50" y="385" as="geometry" />
+        </mxCell>
+        <mxCell id="metrics" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=8;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=11;" value="&lt;b&gt;PIPELINE_METRICS&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Duration, Row Counts&lt;br&gt;Success/Fail/Skipped&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="160" x="60" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="alerts" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=8;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=11;" value="&lt;b&gt;ALERTS&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Failure Rate &gt; 5% WARN&lt;br&gt;Failure Rate &gt; 20% CRIT&lt;br&gt;Pipeline Staleness&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="190" x="280" y="420" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
